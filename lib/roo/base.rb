@@ -279,7 +279,6 @@ class Roo::Base
 
   def each(options = {})
     return to_enum(:each, options) unless block_given?
-
     if options.empty?
       1.upto(last_row) do |line|
         yield row(line)
@@ -312,7 +311,8 @@ class Roo::Base
     each do |row|
       line_no += 1
       headers = query.map { |q| row.grep(q)[0] }.compact
-      if headers.length == query.length
+      # #421 allow missing header columns
+      if headers.length > 1
         @header_line = line_no
         return return_headers ? headers : line_no
       else
@@ -495,13 +495,17 @@ class Roo::Base
   end
 
   def set_headers(hash = {})
+    # hash contains the header search and column name map
+
     # try to find header row with all values or give an error
     # then create new hash by indexing strings and keeping integers for header array
-    header_row = row_with(hash.values, true)
-    @headers = {}
-    hash.each_with_index do |(key, _), index|
-      @headers[key] = header_index(header_row[index])
-    end
+
+    # @headers contains the header row from the spreadsheet
+    @headers = row_with(hash.values, true)
+
+    # REJECT COLUMN NAMES FROM HASH THAT DO NOT EXIST, #421
+    hash.reject!{ |k,v| @headers.grep(v).empty?}
+    @headers = Hash[hash.keys.zip(@headers.map { |x| header_index(x) })]
   end
 
   def header_index(query)
